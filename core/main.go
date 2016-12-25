@@ -1,66 +1,42 @@
 package core
 
 import (
-	"log"
-
-	"text/template"
-
-	//"fmt"
+	// "fmt"
 	"net/http"
-
-   "encoding/base64"
+	//"github.com/gedex/go-instagram/instagram"
+	//"appengine"
+	//"appengine/urlfetch"
 )
 
-type Params struct {
-   MailSenderName string
-   MailSenderEmail string
-	ClientId string
-}
-
-func parseTemplateParams() (*Params, error) {
-    MailSenderName, err := base64.StdEncoding.DecodeString(MAIL_SENDER_NAME)
-    if err != nil {
-       return nil, err
-    }
-    MailSenderEmail, err := base64.StdEncoding.DecodeString(MAIL_SENDER_EMAIL)
-    if err != nil {
-       return nil, err
-    }
-    CliendId, err := base64.StdEncoding.DecodeString(GOOGLE_CLIENT_ID)
-    if err != nil {
-       return nil, err
-    }
-
-    params := Params{
-      MailSenderName: string(MailSenderName),
-      MailSenderEmail: string(MailSenderEmail),
-      ClientId: string(CliendId),
-    }
-
-    return &params, nil
-}
-
-func handleMainPage(w http.ResponseWriter, r *http.Request) {
-    params, err := parseTemplateParams()
-    if err != nil {
-        log.Fatalf("template execution: %s", err)
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-    }
-    var index = template.Must(template.ParseFiles("templates/index.html"))
-
-    err = index.Execute(w, params)
-    if err != nil {
-        log.Fatalf("template execution: %s", err)
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-    }
-}
-
 func init() {
-	http.HandleFunc("/map", handleMapPage)
-   http.HandleFunc("/mail", handleMailPage)
-	http.HandleFunc("/send", handleSendPage)
-	http.HandleFunc("/setup", setup)
-	http.HandleFunc("/search", searchPage)
-	http.HandleFunc("/parser", parserPage)
-	http.HandleFunc("/", handleMainPage)
+	http.HandleFunc("/", handler)
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+
+	err := parser(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	/*
+	   c := appengine.NewContext(r)
+	   client := urlfetch.Client(c)
+	   instagramClient := instagram.NewClient(client)
+
+	   //instagramClient.ClientID = "8794727f2762463e88f6c19fda007b0e"
+	   //instagramClient.ClientSecret = "300e4e786ecd4e608070d08c1dc2e17a"
+	   instagramClient.AccessToken = "4306170754.8794727.78e3bf8b30dd4e6b9082dde0e3834c1f"
+
+	   // Gets user's feed.
+
+	   opt := &instagram.Parameters{Count: 3}
+	   media, next, err := instagramClient.Users.RecentMedia("25025320", opt)
+	   fmt.Fprint(w, "Hello, world!", media, next)
+
+	   if err != nil {
+	           http.Error(w, err.Error(), http.StatusInternalServerError)
+	           return
+	   }
+	   fmt.Fprint(w, "Hello, world!", media)*/
 }
