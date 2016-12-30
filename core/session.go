@@ -14,6 +14,9 @@ import (
 	"math/rand"
 	"mime/multipart"
 	"net/http"
+	//"strings"
+	"net/url"
+	"os"
 	"time"
 )
 
@@ -26,13 +29,17 @@ type loginParamsStruct struct {
 	LoginAttempCount int    `json:"login_attempt_count"`
 }
 
-type uploadParamsStruct struct {
-	DeviceID         string `json:"device_id"`
-	UUID             string `json:"_uuid"`
-	CSRFToken        string `json:"_csrftoken"`
-	UploadID         int64  `json:"upload_id"`
-	ImageCompression string `json:"image_compression"`
-	Filename         string `json:"filename"`
+type configureParamsStruct struct {
+	DeviceID        string `json:"device_id"`
+	UUID            string `json:"_uuid"`
+	CSRFToken       string `json:"_csrftoken"`
+	MediaID         string `json:"media_id"`
+	Caption         string `json:"caption"`
+	DeviceTimestamp int64  `json:"device_timestamp"`
+	SourceType      string `json:"source_type"`
+	FilterType      string `json:"filter_type"`
+	Extra           string `json:"extra"`
+	ContentType     string `json:"Content-Type"`
 }
 
 type loginStatusStruct struct {
@@ -70,52 +77,24 @@ var (
 	_DeviceID    = "android-8c69989e4115c78b"
 	_UserName    = "day.review"
 	_Password    = "vavilon"
-	_uuid        = generateUUID()
-	_UserAgent   = generateUserAgent()
+	_ContentType = "application/x-www-form-urlencoded; charset=UTF-8"
 )
 
-func login(c appengine.Context) error {
-	var loginParams = loginParamsStruct{
-		DeviceID:         _DeviceID,
-		UUID:             _uuid,
-		Username:         _UserName,
-		Password:         _Password,
-		CSRFToken:        "missing",
-		LoginAttempCount: 0,
-	}
+type Session struct {
+	Cookies   []*http.Cookie
+	DeviceID  string
+	UUID      string
+	UserAgent string
+	MediaID   string
+}
 
-	data, _ := json.Marshal(loginParams)
+func newSession() *Session {
+	session := new(Session)
+	session.DeviceID = _DeviceID
+	session.UUID = generateUUID()
+	session.UserAgent = generateUserAgent()
 
-	var sig = generateSignature(data)
-	var payload = fmt.Sprintf("signed_body=%s.%s&ig_sig_key_version=4", sig, string(data))
-
-	client := urlfetch.Client(c)
-
-	urlStr := _EndPointURL + "/accounts/login/"
-	req, _ := http.NewRequest("POST", urlStr, bytes.NewBufferString(payload))
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-	req.Header.Add("User-Agent", _UserAgent)
-	resp, _ := client.Do(req)
-
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	c.Debugf(string(body))
-
-	var loginStatus *loginStatusStruct
-	err = json.Unmarshal(body, &loginStatus)
-	if err != nil {
-		return err
-	}
-
-	if loginStatus.Status != "ok" {
-		return errors.New(loginStatus.Message)
-	}
-
-	return nil
+	return session
 }
 
 func generateUserAgent() string {
@@ -155,43 +134,98 @@ func generateUUID() (uuid string) {
 	return
 }
 
-func uploadPhoto(c appengine.Context /*, file []byte*/) (string, error) {
-	var now = time.Now().Unix()
-	var uploadParams = uploadParamsStruct{
-		DeviceID:         _DeviceID,
-		UUID:             _uuid,
+func (session *Session) login(c appengine.Context) error {
+	var loginParams = loginParamsStruct{
+		DeviceID:         session.DeviceID,
+		UUID:             session.UUID,
+		Username:         _UserName,
+		Password:         _Password,
 		CSRFToken:        "missing",
-		UploadID:         now,
-		ImageCompression: `{"lib_name":"jt","lib_version":"1.3.0","quality":"70"}`,
-		Filename:         fmt.Sprintf("pending_media_%d.jpg", now),
+		LoginAttempCount: 0,
 	}
 
-	//data, _ := json.Marshal(uploadParams)
+	data, _ := json.Marshal(loginParams)
+
+	var sig = generateSignature(data)
+	var payload = fmt.Sprintf("signed_body=%s.%s&ig_sig_key_version=4", sig, string(data))
 
 	client := urlfetch.Client(c)
 
-	urlStr := _EndPointURL + "/upload/photo/"
-	//req, _ := http.NewRequest("POST", urlStr, bytes.NewBuffer(data))
-	//req.Header.Add("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-	//req.Header.Add("User-Agent", _UserAgent)
-	//resp, _ := client.Do(req)
+	urlStr := _EndPointURL + "/accounts/login/"
+	req, _ := http.NewRequest("POST", urlStr, bytes.NewBufferString(payload))
+	req.Header.Add("Content-Type", _ContentType)
+	req.Header.Add("User-Agent", session.UserAgent)
+	resp, _ := client.Do(req)
 
-	fileContents := []byte("mmmm")
-	uploadBody := new(bytes.Buffer)
-	writer := multipart.NewWriter(uploadBody)
-	part, err := writer.CreateFormFile("upload", "static/pic1.jpg")
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	c.Debugf(string(body))
+
+	var loginStatus *loginStatusStruct
+	err = json.Unmarshal(body, &loginStatus)
+	if err != nil {
+		return err
+	}
+
+	if loginStatus.Status != "ok" {
+		return errors.New(loginStatus.Message)
+	}
+
+	session.Cookies = resp.Cookies()
+
+	return nil
+}
+
+func (session *Session) uploadPhoto(c appengine.Context) (string, error) {
+	var now = time.Now().Unix()
+
+	var photoName = "pending_media_1483124562.57.jpg"
+	var filename = fmt.Sprintf("%v.2", now)
+	var uploadID = fmt.Sprintf("%d", now)
+
+	c.Debugf("DATA")
+	c.Debugf(filename)
+	c.Debugf(uploadID)
+
+	client := urlfetch.Client(c)
+	urlStr := _EndPointURL + "/upload/photo/"
+
+	//////// READ FILE ///////
+
+	file, err := os.Open("static/" + photoName)
 	if err != nil {
 		return "", err
 	}
+	fileContents, err := ioutil.ReadAll(file)
 
+	c.Debugf(fmt.Sprintf("Size of file: %v", len(fileContents)))
+
+	uploadBody := new(bytes.Buffer)
+	writer := multipart.NewWriter(uploadBody)
+	part, err := writer.CreateFormFile("photo", photoName)
+	if err != nil {
+		return "", err
+	}
 	part.Write(fileContents)
 
-	writer.WriteField("_csrftoken", uploadParams.CSRFToken)
-	writer.WriteField("upload_id", string(uploadParams.UploadID))
-	writer.WriteField("device_id", uploadParams.DeviceID)
-	writer.WriteField("_uuid", uploadParams.UUID)
-	writer.WriteField("image_compression", uploadParams.ImageCompression)
-	writer.WriteField("filename", uploadParams.Filename)
+	//////// READ FILE ///////
+
+	extraParams := map[string]string{
+		"_csrftoken":        "missing",
+		"upload_id":         uploadID,
+		"device_id":         session.DeviceID,
+		"_uuid":             session.UUID,
+		"image_compression": `{"lib_name":"jt","lib_version":"1.3.0","quality":"70"}`,
+		"filename":          filename,
+	}
+
+	for key, val := range extraParams {
+		_ = writer.WriteField(key, val)
+	}
 
 	err = writer.Close()
 	if err != nil {
@@ -199,9 +233,16 @@ func uploadPhoto(c appengine.Context /*, file []byte*/) (string, error) {
 	}
 
 	req, _ := http.NewRequest("POST", urlStr, uploadBody)
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-	req.Header.Add("User-Agent", _UserAgent)
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Add("Content-Type", _ContentType)
+	req.Header.Add("User-Agent", session.UserAgent)
+	req.Header.Add("Content-Type", writer.FormDataContentType())
+
+	for name, cookie := range session.Cookies {
+		c.Debugf(fmt.Sprintf("Header %v: %v", name, cookie))
+		req.AddCookie(cookie)
+	}
+
+	c.Debugf("FormData: %v", writer.FormDataContentType())
 
 	resp, _ := client.Do(req)
 
@@ -211,7 +252,7 @@ func uploadPhoto(c appengine.Context /*, file []byte*/) (string, error) {
 		return "", err
 	}
 
-	c.Debugf(string(body))
+	c.Debugf("Upload response: %v", string(body))
 
 	var uploadPhotoStatus *uploadPhotoStatusStruct
 	err = json.Unmarshal(body, &uploadPhotoStatus)
@@ -223,5 +264,62 @@ func uploadPhoto(c appengine.Context /*, file []byte*/) (string, error) {
 		return "", errors.New(uploadPhotoStatus.Message)
 	}
 
+	session.MediaID = uploadPhotoStatus.MediaID
 	return uploadPhotoStatus.MediaID, nil
+}
+
+func (session *Session) configurePhoto(c appengine.Context, caption string) error {
+	var configureParams = configureParamsStruct{
+		DeviceID:        session.DeviceID,
+		UUID:            session.UUID,
+		CSRFToken:       "missing",
+		MediaID:         session.MediaID,
+		Caption:         caption,
+		DeviceTimestamp: time.Now().Unix(),
+		SourceType:      "5",
+		FilterType:      "0",
+		Extra:           "{}",
+		ContentType:     _ContentType,
+	}
+
+	data, _ := json.Marshal(configureParams)
+
+	var sig = generateSignature(data)
+	var payload = fmt.Sprintf("signed_body=%s.%s&ig_sig_key_version=4", sig, url.QueryEscape(string(data)))
+
+	c.Debugf(fmt.Sprintf("payload", payload))
+
+	client := urlfetch.Client(c)
+
+	urlStr := _EndPointURL + "/media/configure/"
+	req, _ := http.NewRequest("POST", urlStr, bytes.NewBufferString(payload))
+	req.Header.Add("Content-Type", _ContentType)
+	req.Header.Add("User-Agent", session.UserAgent)
+
+	for name, cookie := range session.Cookies {
+		c.Debugf(fmt.Sprintf("Header %v: %v", name, cookie))
+		req.AddCookie(cookie)
+	}
+
+	resp, _ := client.Do(req)
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	c.Debugf(string(body))
+
+	var loginStatus *loginStatusStruct
+	err = json.Unmarshal(body, &loginStatus)
+	if err != nil {
+		return err
+	}
+
+	if loginStatus.Status != "ok" {
+		return errors.New(loginStatus.Message)
+	}
+
+	return nil
 }

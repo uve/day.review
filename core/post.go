@@ -19,19 +19,28 @@ func post(w http.ResponseWriter, r *http.Request) error {
 }
 
 func createPost(c appengine.Context) error {
-	err := login(c)
+	session := newSession()
+
+	err := session.login(c)
 	if err != nil {
 		return err
 	}
 
 	c.Debugf("result: logged successfully")
 
-	mediaID, err := uploadPhoto(c)
+	mediaID, err := session.uploadPhoto(c)
 	if err != nil {
 		return err
 	}
 
 	c.Debugf("result: photo uploaded: ", mediaID)
+
+	err = session.configurePhoto(c, "test5")
+	if err != nil {
+		return err
+	}
+
+	c.Debugf("Done. Photo configured")
 
 	return nil
 }
