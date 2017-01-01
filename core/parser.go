@@ -5,16 +5,16 @@ import (
 	"appengine/urlfetch"
 	"fmt"
 	"io/ioutil"
-	"net/http"
+	//"net/http"
 
 	"encoding/json"
 	"errors"
 	"time"
 )
 
-func parser(w http.ResponseWriter, r *http.Request) error {
+func parser(c appengine.Context) (*Account, error) {
 	accounts := make([]*Account, 0)
-	c := appengine.NewContext(r)
+
 	parsed := 0
 	var value *Account
 	ch := make(chan *Account) // We don't need any data to be passed, so use an empty struct
@@ -33,11 +33,11 @@ func parser(w http.ResponseWriter, r *http.Request) error {
 
 	account := filterAccountMaxLikes(accounts)
 
-	fmt.Fprint(w, "\nResult: https://www.instagram.com/p/", account.Node.Code)
-	fmt.Fprint(w, "\nUser: ", account.UserID)
-	fmt.Fprint(w, "\nLikes: ", account.Likes)
+	c.Debugf(fmt.Sprintf("Result: https://www.instagram.com/p/%v", account.Node.Code))
+	c.Debugf(fmt.Sprintf("nUser: ", account.UserID))
+	c.Debugf(fmt.Sprintf("nLikes: ", account.Likes))
 
-	return nil
+	return account, nil
 }
 
 func getAccount(c appengine.Context, ch chan<- *Account, userID string) {
@@ -60,6 +60,7 @@ func parserAccount(c appengine.Context, userID string) (*Account, error) {
 
 	c.Debugf(userID, " Total media:", len(user.Media.Nodes))
 	nodes := filterMediaByData(user.Media.Nodes)
+	nodes = filterNotVideo(nodes)
 
 	if len(nodes) < 1 {
 		return nil, errors.New("No media found")
@@ -72,6 +73,7 @@ func parserAccount(c appengine.Context, userID string) (*Account, error) {
 	c.Debugf(userID, " Likes: ", node.Likes.Count)
 
 	return &Account{
+		User:   user,
 		UserID: userID,
 		Node:   node,
 		Likes:  node.Likes.Count,
@@ -86,6 +88,18 @@ func filterMediaByData(nodes []Node) []Node {
 
 	for _, node := range nodes {
 		if node.Date > dayAgo {
+			filtered = append(filtered, node)
+		}
+	}
+
+	return filtered
+}
+
+func filterNotVideo(nodes []Node) []Node {
+	filtered := make([]Node, 0)
+
+	for _, node := range nodes {
+		if node.IsVideo == false {
 			filtered = append(filtered, node)
 		}
 	}

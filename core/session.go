@@ -15,8 +15,10 @@ import (
 	"mime/multipart"
 	"net/http"
 	//"strings"
+	"image"
+	"image/jpeg"
+	//"image/png"
 	"net/url"
-	"os"
 	"time"
 )
 
@@ -180,10 +182,10 @@ func (session *Session) login(c appengine.Context) error {
 	return nil
 }
 
-func (session *Session) uploadPhoto(c appengine.Context) (string, error) {
+func (session *Session) uploadPhoto(c appengine.Context, img *image.RGBA) (string, error) {
 	var now = time.Now().Unix()
 
-	var photoName = "pending_media_1483124562.57.jpg"
+	var photoName = fmt.Sprintf("pending_media_%v.57.jpg", now) // "pending_media_1483124562.57.jpg"
 	var filename = fmt.Sprintf("%v.2", now)
 	var uploadID = fmt.Sprintf("%d", now)
 
@@ -195,22 +197,44 @@ func (session *Session) uploadPhoto(c appengine.Context) (string, error) {
 	urlStr := _EndPointURL + "/upload/photo/"
 
 	//////// READ FILE ///////
+	/*
+		uploadBody := new(bytes.Buffer)
+		err := png.Encode(uploadBody, img)
+		if err != nil {
+			return "", err
+		}
 
-	file, err := os.Open("static/" + photoName)
+		writer := multipart.NewWriter(uploadBody)
+				part, err := writer.CreateFormFile("photo", photoName)
+			if err != nil {
+				return "", err
+			}
+			part.Write(uploadBody.Bytes())
+
+	*/
+
+	c.Debugf("img55:")
+
+	uploadBody := new(bytes.Buffer)
+	/*decodedImage, err := png.Decode(img)
 	if err != nil {
 		return "", err
 	}
-	fileContents, err := ioutil.ReadAll(file)
+	*/
+	err := jpeg.Encode(uploadBody, img, nil)
+	if err != nil {
+		return "", err
+	}
 
-	c.Debugf(fmt.Sprintf("Size of file: %v", len(fileContents)))
+	c.Debugf("img22:")
 
-	uploadBody := new(bytes.Buffer)
 	writer := multipart.NewWriter(uploadBody)
+
 	part, err := writer.CreateFormFile("photo", photoName)
 	if err != nil {
 		return "", err
 	}
-	part.Write(fileContents)
+	part.Write(uploadBody.Bytes())
 
 	//////// READ FILE ///////
 

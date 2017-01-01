@@ -2,8 +2,10 @@ package core
 
 import ()
 
-type IdType struct {
-	ID string `json:"id"`
+type Owner struct {
+	ID            string `json:"id"`
+	Username      string `json:"username"`
+	ProfilePicURL string `json:"profile_pic_url"`
 }
 
 type Dimensions struct {
@@ -15,7 +17,7 @@ type Dimensions struct {
 type Node struct {
 	DisplaySrc       string     `json:"display_src"`
 	ThumbnailSrc     string     `json:"thumbnail_src"`
-	Owner            IdType     `json:"owner"`
+	Owner            Owner      `json:"owner"`
 	ID               string     `json:"id"`
 	Date             int64      `json:"date"`
 	CommentsDisabled bool       `json:"comments_disabled"`
@@ -50,6 +52,7 @@ type Count struct {
 
 /* Account type */
 type Account struct {
+	User   *User
 	UserID string
 	Node   Node
 	Likes  int
@@ -57,6 +60,7 @@ type Account struct {
 
 /* User type */
 type User struct {
+	ProfilePicURL      string `json:"profile_pic_url"`
 	Media              Media  `json:"media"`
 	Biography          string `json:"biography"`
 	ID                 string `json:"id"`
@@ -76,7 +80,6 @@ type User struct {
 	IsVerified         bool   `json:"is_verified"`
 
 	ExternalURLLinkshimmed string `json:""`
-	ProfilePicURL          string `json:""`
 }
 
 /* UserJSON type*/
