@@ -1,7 +1,8 @@
 cron:
-#- description: Search new app from BigQuery
-#  url: /search
-#  schedule: every 60 minutes
+
+- description: Post new image
+  url: /parser
+  schedule: every day 13:30
 
 #- description: Parse apps e-mails
 #  url: /parser

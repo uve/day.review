@@ -1,4 +1,4 @@
-application: dayreview
+application: day-review
 version: v1
 runtime: go
 api_version: go1
@@ -35,6 +35,13 @@ handlers:
 
 - url: /static
   static_dir: static
+  application_readable: true
+  secure: always
+
+- url: /static/repost.png
+  static_files: static/repost.png
+  upload:  static/repost.png
+  application_readable: true
   secure: always
 
 - url: /.*

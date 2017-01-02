@@ -5,7 +5,8 @@ import (
 	"net/http"
 )
 
-func post(w http.ResponseWriter, r *http.Request) error {
+func postHandler(w http.ResponseWriter, r *http.Request) {
+	var err error
 	c := appengine.NewContext(r)
 
 	instagramImage := &InstagramImage{
@@ -15,17 +16,29 @@ func post(w http.ResponseWriter, r *http.Request) error {
 		Body:       "Repost from @therock.therock text..",
 	}
 
-	err := createPost(c, instagramImage)
+	err = instagramImage.processImage(c)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = instagramImage.publish(c)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	c.Debugf("result: post created")
-
-	return nil
+	/*
+		err = writeImage(w, instagramImage.Photo)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	*/
 }
 
-func createPost(c appengine.Context, instagramImage *InstagramImage) error {
+func (instagramImage *InstagramImage) publish(c appengine.Context) error {
 	var err error
 	session := newSession()
 
@@ -35,12 +48,7 @@ func createPost(c appengine.Context, instagramImage *InstagramImage) error {
 	}
 
 	c.Debugf("result: logged successfully")
-	/*
-		instagramImage.Image, err = instagramImage.load(c, instagramImage.DisplaySrc)
-		if err != nil {
-			return err
-		}
-	*/
+
 	mediaID, err := session.uploadPhoto(c, instagramImage.Photo)
 	if err != nil {
 		return err

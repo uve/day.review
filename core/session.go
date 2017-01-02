@@ -182,16 +182,17 @@ func (session *Session) login(c appengine.Context) error {
 	return nil
 }
 
-func (session *Session) uploadPhoto(c appengine.Context, img *image.RGBA) (string, error) {
+func (session *Session) uploadPhoto(c appengine.Context, m *image.Image) (string, error) {
 	var now = time.Now().Unix()
 
-	var photoName = fmt.Sprintf("pending_media_%v.57.jpg", now) // "pending_media_1483124562.57.jpg"
-	var filename = fmt.Sprintf("%v.2", now)
+	var filename = fmt.Sprintf("pending_media_%v.57.jpg", now) // "pending_media_1483124562.57.jpg"
+	//var filename = fmt.Sprintf("%v.2", now)
 	var uploadID = fmt.Sprintf("%d", now)
 
 	c.Debugf("DATA")
-	c.Debugf(filename)
-	c.Debugf(uploadID)
+	//c.Debugf(filename)
+	c.Debugf("Filename: ", filename)
+	c.Debugf("UploadID: ", uploadID)
 
 	client := urlfetch.Client(c)
 	urlStr := _EndPointURL + "/upload/photo/"
@@ -213,28 +214,24 @@ func (session *Session) uploadPhoto(c appengine.Context, img *image.RGBA) (strin
 
 	*/
 
-	c.Debugf("img55:")
+	c.Debugf("Result image Encode:")
 
-	uploadBody := new(bytes.Buffer)
-	/*decodedImage, err := png.Decode(img)
-	if err != nil {
-		return "", err
-	}
-	*/
-	err := jpeg.Encode(uploadBody, img, nil)
+	var buffer bytes.Buffer
+	err := jpeg.Encode(&buffer, *m, &jpeg.Options{Quality: 70})
 	if err != nil {
 		return "", err
 	}
 
-	c.Debugf("img22:")
+	c.Debugf("image name:", filename)
+	c.Debugf("image size:", len(buffer.Bytes()))
 
-	writer := multipart.NewWriter(uploadBody)
+	writer := multipart.NewWriter(&buffer)
 
-	part, err := writer.CreateFormFile("photo", photoName)
+	part, err := writer.CreateFormFile("photo", filename)
 	if err != nil {
 		return "", err
 	}
-	part.Write(uploadBody.Bytes())
+	part.Write(buffer.Bytes())
 
 	//////// READ FILE ///////
 
@@ -247,6 +244,8 @@ func (session *Session) uploadPhoto(c appengine.Context, img *image.RGBA) (strin
 		"filename":          filename,
 	}
 
+	c.Debugf("extraParams:", extraParams)
+
 	for key, val := range extraParams {
 		_ = writer.WriteField(key, val)
 	}
@@ -256,15 +255,17 @@ func (session *Session) uploadPhoto(c appengine.Context, img *image.RGBA) (strin
 		return "", err
 	}
 
-	req, _ := http.NewRequest("POST", urlStr, uploadBody)
-	req.Header.Add("Content-Type", _ContentType)
-	req.Header.Add("User-Agent", session.UserAgent)
-	req.Header.Add("Content-Type", writer.FormDataContentType())
+	req, _ := http.NewRequest("POST", urlStr, &buffer)
+	//req.Header.Add("Content-Type", _ContentType)
+	req.Header.Set("User-Agent", session.UserAgent)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	for name, cookie := range session.Cookies {
-		c.Debugf(fmt.Sprintf("Header %v: %v", name, cookie))
+		c.Debugf(fmt.Sprintf("Cookie %v: %v", name, cookie))
 		req.AddCookie(cookie)
 	}
+
+	c.Debugf(fmt.Sprintf("All Headers: %v", req.Header))
 
 	c.Debugf("FormData: %v", writer.FormDataContentType())
 

@@ -28,47 +28,41 @@ func parserHandler(w http.ResponseWriter, r *http.Request) {
 
 	//c.Debugf(fmt.Sprintf("Account: %v", account.Node.Owner))
 
-	instagramImage.Photo, err = processImage(c, instagramImage)
+	err = instagramImage.processImage(c)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	err = createPost(c, instagramImage)
+	err = instagramImage.publish(c)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+	/*
+		err = writeImage(w, instagramImage.Photo)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	*/
 
-	err = writeImage(w, instagramImage.Photo)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-
+	c.Debugf("result: post created")
 }
 
 func parserImage(w http.ResponseWriter, r *http.Request) {
 	c := appengine.NewContext(r)
 
 	instagramImage := &InstagramImage{
-		DisplaySrc: "https://scontent.cdninstagram.com/t51.2885-15/e35/15624166_231201313993189_2257556495791030272_n.jpg?ig_cache_key=MTQxNjg1MDM5MjI2ODc5MTQzNA%3D%3D.2",
+		DisplaySrc: "https://scontent.cdninstagram.com/t51.2885-15/e35/15624166_231201313993189_2257556495791030272_n.jpg",
 		AvatarSrc:  "https://scontent.cdninstagram.com/t51.2885-19/s150x150/14719833_310540259320655_1605122788543168512_a.jpg",
 		Caption:    "therock.therock",
 		Body:       "Repost from @therock.therock text..",
 	}
 
-	img, err := processImage(c, instagramImage)
+	err := instagramImage.processImage(c)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	err = writeImage(w, img)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
-
-func postHandler(w http.ResponseWriter, r *http.Request) {
-
-	err := post(w, r)
+	err = writeImage(w, instagramImage.Photo)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
